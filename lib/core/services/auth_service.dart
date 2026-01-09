@@ -66,41 +66,68 @@ class AuthService {
         throw Exception('Please enter a valid 6-digit OTP');
       }
 
+      if (phoneNumber == null || phoneNumber.isEmpty) {
+        throw Exception('Phone number is required');
+      }
+
       // Master OTP fallback (if SMS not received)
       const masterOTP = '123456';
-      PhoneAuthCredential credential;
       bool isMasterOTP = smsCode == masterOTP;
 
-      // Create credential (works for both regular OTP and master OTP)
-      credential = PhoneAuthProvider.credential(
+      // Create credential
+      final credential = PhoneAuthProvider.credential(
         verificationId: verificationId,
         smsCode: smsCode,
       );
 
-      // Sign in with credential
-      UserCredential userCredential;
+      // Sign in with credential - handle type cast errors
+      User? user;
       
       try {
-        userCredential = await _auth.signInWithCredential(credential);
-      } on FirebaseAuthException catch (e) {
-        // If verification fails and it's master OTP, provide helpful message
-        if (isMasterOTP) {
-          throw Exception('Master OTP verification failed. Please ensure Phone Authentication is properly configured in Firebase Console. Error: ${e.message}');
+        final userCredential = await _auth.signInWithCredential(credential);
+        user = userCredential.user;
+      } catch (e) {
+        // Handle type cast errors (PigeonUserDetails issue)
+        if (e.toString().contains('PigeonUserDetails') || 
+            e.toString().contains('typecast') ||
+            e.toString().contains('List<Object?>')) {
+          // Wait a bit for auth state to update
+          await Future.delayed(const Duration(milliseconds: 1000));
+          // Check if user was actually signed in despite the error
+          user = _auth.currentUser;
+          
+          if (user == null) {
+            // If still no user, try one more time with a delay
+            await Future.delayed(const Duration(milliseconds: 500));
+            user = _auth.currentUser;
+          }
+          
+          if (user == null) {
+            throw Exception('OTP verification failed due to plugin error. Please try again or use master OTP: 123456');
+          }
+        } else if (e is FirebaseAuthException) {
+          if (isMasterOTP) {
+            throw Exception('Master OTP verification failed. Please ensure Phone Authentication is properly configured in Firebase Console. Error: ${e.message}');
+          }
+          throw Exception('OTP verification failed: ${e.message}');
+        } else {
+          throw Exception('OTP verification failed: $e');
         }
-        rethrow;
       }
       
-      if (userCredential.user == null) {
+      // Ensure we have a user
+      if (user == null) {
+        // Final check
+        await Future.delayed(const Duration(milliseconds: 300));
+        user = _auth.currentUser;
+      }
+      
+      if (user == null) {
         throw Exception('Failed to sign in. Please try again.');
       }
 
-      final user = userCredential.user!;
       final uid = user.uid;
-      final phone = user.phoneNumber ?? phoneNumber ?? '';
-
-      if (phone.isEmpty) {
-        throw Exception('Phone number not found');
-      }
+      final phone = user.phoneNumber ?? phoneNumber;
 
       // Check if user document already exists
       final userDoc = await _firestore.collection('users').doc(uid).get();
