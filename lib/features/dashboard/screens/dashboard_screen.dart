@@ -49,10 +49,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await context.read<UserProvider>().signOut();
-              if (mounted) {
-                context.go('/login');
-              }
+              final userProvider = context.read<UserProvider>();
+              await userProvider.signOut();
+              if (!mounted) return;
+              context.go('/login');
             },
             tooltip: 'Logout',
           ),

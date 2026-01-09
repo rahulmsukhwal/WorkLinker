@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:worklinker/core/providers/project_provider.dart';
 import 'package:worklinker/core/services/project_service.dart';
-import 'package:worklinker/core/models/project_model.dart';
 
 class AdminPanelScreen extends StatelessWidget {
   const AdminPanelScreen({super.key});

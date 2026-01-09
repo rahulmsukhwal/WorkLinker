@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:worklinker/core/services/auth_service.dart';
-import 'package:worklinker/core/providers/user_provider.dart';
 
 class OTPVerificationScreen extends StatefulWidget {
   final String phone;

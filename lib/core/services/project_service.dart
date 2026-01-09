@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/project_model.dart';
 import '../models/project_member_model.dart';
-import '../models/group_model.dart';
 import '../models/user_model.dart';
 import '../utils/permissions.dart';
 

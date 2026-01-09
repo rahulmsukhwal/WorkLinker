@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:worklinker/core/providers/project_provider.dart';
 import 'package:worklinker/core/providers/user_provider.dart';
-import 'package:worklinker/core/services/project_service.dart';
 import 'package:worklinker/core/services/auth_service.dart';
-import 'package:worklinker/core/models/project_member_model.dart';
-import 'package:worklinker/core/models/user_model.dart';
 
 class MembersListScreen extends StatelessWidget {
   final String projectId;

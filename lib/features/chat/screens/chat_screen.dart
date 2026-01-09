@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:worklinker/core/providers/user_provider.dart';
 import 'package:worklinker/core/services/chat_service.dart';
 import 'package:worklinker/core/services/auth_service.dart';
-import 'package:worklinker/core/models/message_model.dart';
-import 'package:worklinker/core/models/user_model.dart';
 
 class ChatScreen extends StatefulWidget {
   final String projectId;
@@ -172,7 +170,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.grey[100],
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(alpha: 0.2),
                   spreadRadius: 1,
                   blurRadius: 5,
                 ),
