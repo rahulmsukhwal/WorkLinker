@@ -72,18 +72,27 @@ class AuthService {
       
       // Create new user document
       Map<String, dynamic> userData;
+      GlobalRole userRole;
+      UserStatus userStatus;
+      DateTime userCreatedAt;
       
       if (existingUser != null) {
         // User exists with this phone number but different auth UID
         // Use existing user's role and data
+        userRole = existingUser.globalRole;
+        userStatus = existingUser.status;
+        userCreatedAt = existingUser.createdAt;
         userData = {
           'phone': phoneNumber,
           'globalRole': existingUser.globalRole.toString().split('.').last,
           'status': existingUser.status.toString().split('.').last,
-          'createdAt': existingUser.createdAt ?? FieldValue.serverTimestamp(),
+          'createdAt': existingUser.createdAt,
         };
       } else {
         // Brand new user - default role is client
+        userRole = GlobalRole.client;
+        userStatus = UserStatus.active;
+        userCreatedAt = DateTime.now();
         userData = {
           'phone': phoneNumber,
           'globalRole': GlobalRole.client.toString().split('.').last,
@@ -102,9 +111,9 @@ class AuthService {
       return UserModel(
         uid: uid,
         phone: phoneNumber,
-        globalRole: existingUser?.globalRole ?? GlobalRole.client,
-        status: existingUser?.status ?? UserStatus.active,
-        createdAt: existingUser?.createdAt ?? DateTime.now(),
+        globalRole: userRole,
+        status: userStatus,
+        createdAt: userCreatedAt,
       );
     } catch (e) {
       throw Exception('OTP verification failed: $e');
