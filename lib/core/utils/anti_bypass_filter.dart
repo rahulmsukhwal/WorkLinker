@@ -20,16 +20,16 @@ class AntiBypassFilter {
   /// Sanitizes text by removing/replacing forbidden patterns
   static String sanitizeText(String text) {
     String sanitized = text;
-    
+
     // Replace phone numbers
     sanitized = sanitized.replaceAll(phoneRegex, '[Phone number blocked]');
-    
+
     // Replace emails
     sanitized = sanitized.replaceAll(emailRegex, '[Email blocked]');
-    
+
     // Replace URLs
     sanitized = sanitized.replaceAll(urlRegex, '[Link blocked]');
-    
+
     return sanitized;
   }
 
@@ -41,4 +41,3 @@ class AntiBypassFilter {
     return null;
   }
 }
-
