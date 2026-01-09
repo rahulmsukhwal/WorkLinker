@@ -173,15 +173,44 @@ class AuthService {
         return await getUser(uid);
       }
 
-      // Create new user document for email user
-      await _firestore.collection('users').doc(uid).set({
-        'email': email.trim(),
-        'globalRole': GlobalRole.client.toString().split('.').last,
-        'status': UserStatus.active.toString().split('.').last,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // Check if user with this email exists (for role preservation)
+      UserModel? existingUser;
+      final emailQuery = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email.trim())
+          .limit(1)
+          .get();
+      
+      if (emailQuery.docs.isNotEmpty) {
+        existingUser = UserModel.fromFirestore(emailQuery.docs.first);
+      }
 
-      return await getUser(uid);
+      // Create or update user document
+      if (existingUser != null) {
+        // Update existing user document with new auth UID
+        await _firestore.collection('users').doc(uid).set({
+          'email': email.trim(),
+          'globalRole': existingUser.globalRole.toString().split('.').last,
+          'status': existingUser.status.toString().split('.').last,
+          'createdAt': existingUser.createdAt,
+        });
+        return UserModel(
+          uid: uid,
+          email: email.trim(),
+          globalRole: existingUser.globalRole,
+          status: existingUser.status,
+          createdAt: existingUser.createdAt,
+        );
+      } else {
+        // New user
+        await _firestore.collection('users').doc(uid).set({
+          'email': email.trim(),
+          'globalRole': GlobalRole.client.toString().split('.').last,
+          'status': UserStatus.active.toString().split('.').last,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        return await getUser(uid);
+      }
     } on FirebaseAuthException catch (e) {
       throw Exception('Sign in failed: ${e.message}');
     } catch (e) {

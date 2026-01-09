@@ -14,14 +14,16 @@ enum UserStatus {
 
 class UserModel {
   final String uid;
-  final String phone;
+  final String? phone;
+  final String? email;
   final GlobalRole globalRole;
   final UserStatus status;
   final DateTime createdAt;
 
   UserModel({
     required this.uid,
-    required this.phone,
+    this.phone,
+    this.email,
     required this.globalRole,
     required this.status,
     required this.createdAt,
@@ -31,7 +33,8 @@ class UserModel {
     final data = doc.data() as Map<String, dynamic>;
     return UserModel(
       uid: doc.id,
-      phone: data['phone'] ?? '',
+      phone: data['phone'] as String?,
+      email: data['email'] as String?,
       globalRole: GlobalRole.values.firstWhere(
         (e) => e.toString().split('.').last == data['globalRole'],
         orElse: () => GlobalRole.client,
@@ -45,13 +48,17 @@ class UserModel {
   }
 
   Map<String, dynamic> toFirestore() {
-    return {
-      'phone': phone,
+    final map = <String, dynamic>{
       'globalRole': globalRole.toString().split('.').last,
       'status': status.toString().split('.').last,
       'createdAt': Timestamp.fromDate(createdAt),
     };
+    if (phone != null) map['phone'] = phone;
+    if (email != null) map['email'] = email;
+    return map;
   }
+  
+  String get displayIdentifier => phone ?? email ?? 'Unknown';
 
   String getAlias() {
     final suffix = uid.substring(0, 4).toUpperCase();
