@@ -7,13 +7,15 @@ import 'package:worklinker/core/services/project_service.dart';
 import 'package:worklinker/core/services/chat_service.dart';
 import 'package:worklinker/core/providers/user_provider.dart';
 import 'package:worklinker/core/providers/project_provider.dart';
-import 'package:worklinker/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    // On Android, this will use the google-services.json in the android/app folder.
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization failed: $e');
+  }
   runApp(const WorkLinkerApp());
 }
 
