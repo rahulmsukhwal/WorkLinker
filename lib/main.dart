@@ -7,7 +7,7 @@ import 'package:worklinker/core/services/project_service.dart';
 import 'package:worklinker/core/services/chat_service.dart';
 import 'package:worklinker/core/providers/user_provider.dart';
 import 'package:worklinker/core/providers/project_provider.dart';
-import 'firebase_options.dart';
+import 'package:worklinker/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
