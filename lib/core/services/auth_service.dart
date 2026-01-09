@@ -69,34 +69,26 @@ class AuthService {
       // Master OTP fallback (if SMS not received)
       const masterOTP = '123456';
       PhoneAuthCredential credential;
+      bool isMasterOTP = smsCode == masterOTP;
 
-      if (smsCode == masterOTP) {
-        // Use master OTP - create a test credential
-        // Note: This is a fallback, actual Firebase verification still required
-        // For master OTP, we'll use a special handling
-        try {
-          credential = PhoneAuthProvider.credential(
-            verificationId: verificationId,
-            smsCode: smsCode,
-          );
-        } catch (e) {
-          // If master OTP fails with Firebase, we'll handle it differently
-          // For now, try with the provided verificationId
-          credential = PhoneAuthProvider.credential(
-            verificationId: verificationId,
-            smsCode: smsCode,
-          );
-        }
-      } else {
-        // Regular OTP verification
-        credential = PhoneAuthProvider.credential(
-          verificationId: verificationId,
-          smsCode: smsCode,
-        );
-      }
+      // Create credential (works for both regular OTP and master OTP)
+      credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
 
       // Sign in with credential
-      final userCredential = await _auth.signInWithCredential(credential);
+      UserCredential userCredential;
+      
+      try {
+        userCredential = await _auth.signInWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        // If verification fails and it's master OTP, provide helpful message
+        if (isMasterOTP) {
+          throw Exception('Master OTP verification failed. Please ensure Phone Authentication is properly configured in Firebase Console. Error: ${e.message}');
+        }
+        rethrow;
+      }
       
       if (userCredential.user == null) {
         throw Exception('Failed to sign in. Please try again.');
