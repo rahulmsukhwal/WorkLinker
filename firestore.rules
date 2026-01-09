@@ -26,7 +26,8 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       
       // Allow authenticated users to query users collection (for phone lookup during login)
-      allow list: if request.auth != null;
+      // Also allow unauthenticated queries for initial phone lookup
+      allow list: if true; // Allow all queries for phone lookup
       
       // Allow users to create their own user document
       allow create: if request.auth != null && request.auth.uid == userId;
