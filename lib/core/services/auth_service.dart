@@ -68,16 +68,11 @@ class AuthService {
         final userDoc = await _firestore.collection('users').doc(uid).get();
 
         if (!userDoc.exists) {
-          // Check if this is the first user (no users exist in collection)
-          final usersQuery = await _firestore.collection('users').limit(1).get();
-          final isFirstUser = usersQuery.docs.isEmpty;
-          
-          // Create new user - first user becomes admin, others are clients
+          // Create new user - default role is client
+          // Admin role must be set manually using make_admin.dart script
           await _firestore.collection('users').doc(uid).set({
             'phone': phoneNumber ?? 'unknown',
-            'globalRole': isFirstUser 
-                ? GlobalRole.admin.toString().split('.').last
-                : GlobalRole.client.toString().split('.').last,
+            'globalRole': GlobalRole.client.toString().split('.').last,
             'status': UserStatus.active.toString().split('.').last,
             'createdAt': FieldValue.serverTimestamp(),
           });
