@@ -30,20 +30,54 @@ class AuthService {
         throw Exception('Invalid OTP. Use 123456 for testing.');
       }
 
+      // Check if user with this phone number already exists
+      String? existingUserId;
+      if (phoneNumber != null && phoneNumber.isNotEmpty) {
+        final phoneQuery = await _firestore
+            .collection('users')
+            .where('phone', isEqualTo: phoneNumber)
+            .limit(1)
+            .get();
+        
+        if (phoneQuery.docs.isNotEmpty) {
+          existingUserId = phoneQuery.docs.first.id;
+        }
+      }
+
       // Sign in anonymously to get Firebase Auth user (bypassing phone auth)
       final anonymousCredential = await _auth.signInAnonymously();
       
       if (anonymousCredential.user != null) {
         final uid = anonymousCredential.user!.uid;
         
+        // If user with this phone exists, use that user's data
+        if (existingUserId != null) {
+          // Update the existing user's document to link with this auth UID
+          // Or create a new document with the existing user's data
+          final existingUserDoc = await _firestore.collection('users').doc(existingUserId).get();
+          if (existingUserDoc.exists) {
+            // Copy existing user data to new auth UID
+            final existingData = existingUserDoc.data()!;
+            await _firestore.collection('users').doc(uid).set(existingData);
+            // Optionally delete old document or keep both
+            return await getUser(uid);
+          }
+        }
+        
         // Check if user exists in Firestore
         final userDoc = await _firestore.collection('users').doc(uid).get();
 
         if (!userDoc.exists) {
-          // Create new user with client role by default
+          // Check if this is the first user (no users exist in collection)
+          final usersQuery = await _firestore.collection('users').limit(1).get();
+          final isFirstUser = usersQuery.docs.isEmpty;
+          
+          // Create new user - first user becomes admin, others are clients
           await _firestore.collection('users').doc(uid).set({
             'phone': phoneNumber ?? 'unknown',
-            'globalRole': GlobalRole.client.toString().split('.').last,
+            'globalRole': isFirstUser 
+                ? GlobalRole.admin.toString().split('.').last
+                : GlobalRole.client.toString().split('.').last,
             'status': UserStatus.active.toString().split('.').last,
             'createdAt': FieldValue.serverTimestamp(),
           });
