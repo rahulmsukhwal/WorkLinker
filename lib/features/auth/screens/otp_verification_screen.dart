@@ -83,7 +83,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   ),
                   const SizedBox(height: 32),
                   Text(
-                    'Enter OTP sent to\n${widget.phone}\n\n(Use 123456 for testing)',
+                    'Enter OTP sent to\n${widget.phone}',
                     style: const TextStyle(
                       fontSize: 18,
                     ),

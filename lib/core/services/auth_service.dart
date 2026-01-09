@@ -11,35 +11,94 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  /// Send OTP to phone number
+  String? _verificationId;
+
+  /// Send OTP to phone number using Firebase Phone Auth
   /// Returns verificationId when code is sent
-  /// NOTE: OTP sending is disabled for testing - using hardcoded OTP "123456"
   Future<String> sendOTP(String phoneNumber) async {
-    // Bypass actual OTP sending - return dummy verificationId
-    // For testing, use hardcoded OTP: 123456
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
-    return 'dummy_verification_id_for_testing';
+    try {
+      // Verify phone number format
+      if (!phoneNumber.startsWith('+')) {
+        throw Exception('Phone number must include country code (e.g., +91...)');
+      }
+
+      // Send OTP using Firebase Phone Authentication
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (PhoneAuthCredential credential) {
+          // Auto-verification completed (Android only)
+          // This won't be called in most cases
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          throw Exception('Verification failed: ${e.message}');
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          _verificationId = verificationId;
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          _verificationId = verificationId;
+        },
+        timeout: const Duration(seconds: 60),
+      );
+
+      // Wait for verificationId to be set
+      int attempts = 0;
+      while (_verificationId == null && attempts < 50) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        attempts++;
+      }
+
+      if (_verificationId == null) {
+        throw Exception('Failed to send OTP. Please try again.');
+      }
+
+      return _verificationId!;
+    } catch (e) {
+      throw Exception('Failed to send OTP: $e');
+    }
   }
 
-  /// Verify OTP and sign in
-  /// NOTE: For testing, hardcoded OTP "123456" is accepted
+  /// Verify OTP and sign in with Firebase Phone Auth
   Future<UserModel?> verifyOTP(String verificationId, String smsCode, {String? phoneNumber}) async {
     try {
-      // Hardcoded OTP for testing - accept "123456"
-      if (smsCode != '123456') {
-        throw Exception('Invalid OTP. Use 123456 for testing.');
+      if (smsCode.isEmpty || smsCode.length != 6) {
+        throw Exception('Please enter a valid 6-digit OTP');
       }
 
-      if (phoneNumber == null || phoneNumber.isEmpty) {
-        throw Exception('Phone number is required');
-      }
+      // Create phone auth credential
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
 
-      // Check if user with this phone number already exists in Firestore
-      UserModel? existingUser;
+      // Sign in with credential
+      final userCredential = await _auth.signInWithCredential(credential);
       
+      if (userCredential.user == null) {
+        throw Exception('Failed to sign in. Please try again.');
+      }
+
+      final user = userCredential.user!;
+      final uid = user.uid;
+      final phone = user.phoneNumber ?? phoneNumber ?? '';
+
+      if (phone.isEmpty) {
+        throw Exception('Phone number not found');
+      }
+
+      // Check if user document already exists
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+
+      if (userDoc.exists) {
+        // User exists, return user model
+        return await getUser(uid);
+      }
+
+      // Check if user with this phone number exists (for role preservation)
+      UserModel? existingUser;
       final phoneQuery = await _firestore
           .collection('users')
-          .where('phone', isEqualTo: phoneNumber)
+          .where('phone', isEqualTo: phone)
           .limit(1)
           .get();
       
@@ -47,29 +106,6 @@ class AuthService {
         existingUser = UserModel.fromFirestore(phoneQuery.docs.first);
       }
 
-      // Sign in anonymously to get Firebase Auth user (bypassing phone auth)
-      final anonymousCredential = await _auth.signInAnonymously();
-      
-      if (anonymousCredential.user == null) {
-        throw Exception('Failed to create authentication session');
-      }
-      
-      final uid = anonymousCredential.user!.uid;
-      
-      // Check if user document already exists for this auth UID
-      final userDoc = await _firestore.collection('users').doc(uid).get();
-
-      if (userDoc.exists) {
-        // User already exists, update phone if needed and return
-        final currentPhone = userDoc.data()?['phone'] as String?;
-        if (currentPhone != phoneNumber) {
-          await _firestore.collection('users').doc(uid).update({
-            'phone': phoneNumber,
-          });
-        }
-        return await getUser(uid);
-      }
-      
       // Create new user document
       Map<String, dynamic> userData;
       GlobalRole userRole;
@@ -77,46 +113,109 @@ class AuthService {
       DateTime userCreatedAt;
       
       if (existingUser != null) {
-        // User exists with this phone number but different auth UID
-        // Use existing user's role and data
+        // Preserve existing user's role
         userRole = existingUser.globalRole;
         userStatus = existingUser.status;
         userCreatedAt = existingUser.createdAt;
         userData = {
-          'phone': phoneNumber,
+          'phone': phone,
           'globalRole': existingUser.globalRole.toString().split('.').last,
           'status': existingUser.status.toString().split('.').last,
           'createdAt': existingUser.createdAt,
         };
       } else {
-        // Brand new user - default role is client
+        // New user - default role is client
         userRole = GlobalRole.client;
         userStatus = UserStatus.active;
         userCreatedAt = DateTime.now();
         userData = {
-          'phone': phoneNumber,
+          'phone': phone,
           'globalRole': GlobalRole.client.toString().split('.').last,
           'status': UserStatus.active.toString().split('.').last,
           'createdAt': FieldValue.serverTimestamp(),
         };
       }
-      
-      // Create the user document
+
+      // Create user document
       await _firestore.collection('users').doc(uid).set(userData);
-      
-      // Wait a moment for Firestore to process
-      await Future.delayed(const Duration(milliseconds: 100));
-      
-      // Return user model directly instead of fetching again
+
+      // Return user model
       return UserModel(
         uid: uid,
-        phone: phoneNumber,
+        phone: phone,
         globalRole: userRole,
         status: userStatus,
         createdAt: userCreatedAt,
       );
+    } on FirebaseAuthException catch (e) {
+      throw Exception('OTP verification failed: ${e.message}');
     } catch (e) {
       throw Exception('OTP verification failed: $e');
+    }
+  }
+
+  /// Sign in with email and password
+  Future<UserModel?> signInWithEmail(String email, String password) async {
+    try {
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      if (userCredential.user == null) {
+        throw Exception('Failed to sign in');
+      }
+
+      final uid = userCredential.user!.uid;
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+
+      if (userDoc.exists) {
+        return await getUser(uid);
+      }
+
+      // Create new user document for email user
+      await _firestore.collection('users').doc(uid).set({
+        'email': email.trim(),
+        'globalRole': GlobalRole.client.toString().split('.').last,
+        'status': UserStatus.active.toString().split('.').last,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return await getUser(uid);
+    } on FirebaseAuthException catch (e) {
+      throw Exception('Sign in failed: ${e.message}');
+    } catch (e) {
+      throw Exception('Sign in failed: $e');
+    }
+  }
+
+  /// Register with email and password
+  Future<UserModel?> registerWithEmail(String email, String password) async {
+    try {
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      if (userCredential.user == null) {
+        throw Exception('Failed to create account');
+      }
+
+      final uid = userCredential.user!.uid;
+
+      // Create user document
+      await _firestore.collection('users').doc(uid).set({
+        'email': email.trim(),
+        'globalRole': GlobalRole.client.toString().split('.').last,
+        'status': UserStatus.active.toString().split('.').last,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return await getUser(uid);
+    } on FirebaseAuthException catch (e) {
+      throw Exception('Registration failed: ${e.message}');
+    } catch (e) {
+      throw Exception('Registration failed: $e');
     }
   }
 
