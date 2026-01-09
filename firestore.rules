@@ -20,16 +20,10 @@ service cloud.firestore {
     }
     
     // Helper function to check if user is project member
-    // Checks both groups collection and projectMembers collection
+    // Checks if user is in the group's memberIds array
     function isProjectMember(projectId, userId) {
-      // Check if user is in the group
       let groupPath = /databases/$(database)/documents/groups/$(projectId);
-      if (exists(groupPath)) {
-        let groupData = get(groupPath).data;
-        return userId in groupData.memberIds;
-      }
-      // Fallback: check projectMembers collection (for list queries)
-      return false;
+      return exists(groupPath) && userId in get(groupPath).data.memberIds;
     }
     
     // Users collection
