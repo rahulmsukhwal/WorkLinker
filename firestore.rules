@@ -2,14 +2,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to get user data
+    // Helper function to get user data (returns null if doesn't exist)
     function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
+      let userDoc = get(/databases/$(database)/documents/users/$(userId));
+      return userDoc != null ? userDoc.data : null;
     }
     
     // Helper function to check if user is admin
     function isAdmin(userId) {
-      return getUserData(userId).globalRole == 'admin';
+      let userData = getUserData(userId);
+      return userData != null && userData.globalRole == 'admin';
+    }
+    
+    // Helper function to check if user exists
+    function userExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
     }
     
     // Helper function to check if user is project member
@@ -29,14 +36,15 @@ service cloud.firestore {
       // Also allow unauthenticated queries for initial phone lookup
       allow list: if true; // Allow all queries for phone lookup
       
-      // Allow users to create their own user document
+      // Allow users to create their own user document (for first-time registration)
       allow create: if request.auth != null && request.auth.uid == userId;
       
-      // Allow users to update their own phone number
-      allow update: if request.auth != null && request.auth.uid == userId;
+      // Allow users to update their own document (phone, etc.)
+      allow update: if request.auth != null && 
+        (request.auth.uid == userId || isAdmin(request.auth.uid));
       
-      // Only admins can write to other users (for role assignment)
-      allow write: if request.auth != null && isAdmin(request.auth.uid);
+      // Only admins can delete users
+      allow delete: if request.auth != null && isAdmin(request.auth.uid);
     }
     
     // Projects collection
@@ -46,8 +54,11 @@ service cloud.firestore {
         (isProjectMember(projectId, request.auth.uid) || isAdmin(request.auth.uid));
       
       // Only admins and managers can create projects
+      // Also allow if user document doesn't exist yet (first user scenario)
       allow create: if request.auth != null && 
-        (isAdmin(request.auth.uid) || getUserData(request.auth.uid).globalRole == 'manager');
+        (!userExists(request.auth.uid) || 
+         isAdmin(request.auth.uid) || 
+         (getUserData(request.auth.uid) != null && getUserData(request.auth.uid).globalRole == 'manager'));
       
       // Only admins can update/delete projects
       allow update, delete: if request.auth != null && isAdmin(request.auth.uid);
@@ -63,13 +74,15 @@ service cloud.firestore {
       // Admins and managers can add members
       allow create: if request.auth != null && 
         (isAdmin(request.auth.uid) || 
-         (getUserData(request.auth.uid).globalRole == 'manager' && 
+         (getUserData(request.auth.uid) != null && 
+          getUserData(request.auth.uid).globalRole == 'manager' && 
           request.resource.data.projectRole == 'developer'));
       
       // Admins can remove any member, managers can remove developers
       allow delete: if request.auth != null && 
         (isAdmin(request.auth.uid) || 
-         (getUserData(request.auth.uid).globalRole == 'manager' && 
+         (getUserData(request.auth.uid) != null && 
+          getUserData(request.auth.uid).globalRole == 'manager' && 
           resource.data.projectRole == 'developer'));
     }
     
@@ -82,7 +95,7 @@ service cloud.firestore {
       // Only admins and managers can update groups
       allow write: if request.auth != null && 
         (isAdmin(request.auth.uid) || 
-         getUserData(request.auth.uid).globalRole == 'manager');
+         (getUserData(request.auth.uid) != null && getUserData(request.auth.uid).globalRole == 'manager'));
     }
     
     // Messages collection
