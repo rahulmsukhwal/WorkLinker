@@ -39,7 +39,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       final authService = context.read<AuthService>();
       final otp = _otpController.text.trim();
 
-      await authService.verifyOTP(widget.verificationId, otp);
+      await authService.verifyOTP(widget.verificationId, otp, phoneNumber: widget.phone);
 
       // User will be loaded automatically by UserProvider
       if (mounted) {
@@ -83,7 +83,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                   ),
                   const SizedBox(height: 32),
                   Text(
-                    'Enter OTP sent to\n${widget.phone}',
+                    'Enter OTP sent to\n${widget.phone}\n\n(Use 123456 for testing)',
                     style: const TextStyle(
                       fontSize: 18,
                     ),

@@ -13,62 +13,52 @@ class AuthService {
 
   /// Send OTP to phone number
   /// Returns verificationId when code is sent
+  /// NOTE: OTP sending is disabled for testing - using hardcoded OTP "123456"
   Future<String> sendOTP(String phoneNumber) async {
-    final completer = Completer<String>();
-    
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        await _auth.signInWithCredential(credential);
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        if (!completer.isCompleted) {
-          completer.completeError(e);
-        }
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        if (!completer.isCompleted) {
-          completer.complete(verificationId);
-        }
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        if (!completer.isCompleted) {
-          completer.complete(verificationId);
-        }
-      },
-      timeout: const Duration(seconds: 60),
-    );
-    
-    return completer.future;
+    // Bypass actual OTP sending - return dummy verificationId
+    // For testing, use hardcoded OTP: 123456
+    await Future.delayed(const Duration(milliseconds: 500)); // Simulate network delay
+    return 'dummy_verification_id_for_testing';
   }
 
   /// Verify OTP and sign in
-  Future<UserModel?> verifyOTP(String verificationId, String smsCode) async {
+  /// NOTE: For testing, hardcoded OTP "123456" is accepted
+  Future<UserModel?> verifyOTP(String verificationId, String smsCode, {String? phoneNumber}) async {
     try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
+      // Hardcoded OTP for testing - accept "123456"
+      if (smsCode != '123456') {
+        throw Exception('Invalid OTP. Use 123456 for testing.');
+      }
 
-      final userCredential = await _auth.signInWithCredential(credential);
-      final user = userCredential.user;
-
-      if (user != null) {
+      // Sign in anonymously to get Firebase Auth user (bypassing phone auth)
+      final anonymousCredential = await _auth.signInAnonymously();
+      
+      if (anonymousCredential.user != null) {
+        final uid = anonymousCredential.user!.uid;
+        
         // Check if user exists in Firestore
-        final userDoc = await _firestore.collection('users').doc(user.uid).get();
+        final userDoc = await _firestore.collection('users').doc(uid).get();
 
         if (!userDoc.exists) {
           // Create new user with client role by default
-          await _firestore.collection('users').doc(user.uid).set({
-            'phone': user.phoneNumber ?? '',
+          await _firestore.collection('users').doc(uid).set({
+            'phone': phoneNumber ?? 'unknown',
             'globalRole': GlobalRole.client.toString().split('.').last,
             'status': UserStatus.active.toString().split('.').last,
             'createdAt': FieldValue.serverTimestamp(),
           });
+        } else {
+          // Update phone number if provided
+          if (phoneNumber != null) {
+            await _firestore.collection('users').doc(uid).update({
+              'phone': phoneNumber,
+            });
+          }
         }
-
-        return await getUser(user.uid);
+        
+        return await getUser(uid);
       }
+      
       return null;
     } catch (e) {
       throw Exception('OTP verification failed: $e');
