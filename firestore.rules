@@ -37,12 +37,13 @@ service cloud.firestore {
       allow list: if true; // Allow all queries for phone lookup
       
       // Allow users to create their own user document (for first-time registration)
-      // Also allow creation during login if phone number is provided
+      // Must match auth UID and include required fields
       allow create: if request.auth != null && 
-        (request.auth.uid == userId || 
-         // Allow if creating user with phone (for linking during login)
-         (request.resource.data.phone != null && 
-          request.resource.data.phone is string));
+        request.auth.uid == userId &&
+        request.resource.data.phone != null &&
+        request.resource.data.phone is string &&
+        request.resource.data.globalRole != null &&
+        request.resource.data.status != null;
       
       // Allow users to update their own document (phone, etc.), admins can update any
       allow update: if request.auth != null && 

@@ -24,37 +24,37 @@ class _LoginScreenState extends State<LoginScreen> {
   String _formatPhoneNumber(String phone) {
     // Remove all non-digit characters
     String digits = phone.replaceAll(RegExp(r'[^\d]'), '');
-    
+
     // If starts with 91 and has 12 digits, it's already formatted
     if (digits.startsWith('91') && digits.length == 12) {
       return '+$digits';
     }
-    
+
     // If starts with 0, remove it
     if (digits.startsWith('0')) {
       digits = digits.substring(1);
     }
-    
+
     // If 10 digits, add +91 prefix
     if (digits.length == 10) {
       return '+91$digits';
     }
-    
+
     // If already has country code (12 digits starting with 91)
     if (digits.length == 12 && digits.startsWith('91')) {
       return '+$digits';
     }
-    
+
     // Return as is if already formatted with +
     if (phone.startsWith('+')) {
       return phone;
     }
-    
+
     // Default: assume 10 digit Indian number
     if (digits.length == 10) {
       return '+91$digits';
     }
-    
+
     return phone;
   }
 
@@ -68,10 +68,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final authService = context.read<AuthService>();
       String phoneInput = _phoneController.text.trim();
-      
+
       // Auto-format phone number with +91 prefix
       final phoneNumber = _formatPhoneNumber(phoneInput);
-      
+
       // Update the controller to show formatted number
       if (phoneNumber != phoneInput) {
         _phoneController.text = phoneNumber;
@@ -80,7 +80,8 @@ class _LoginScreenState extends State<LoginScreen> {
       final verificationId = await authService.sendOTP(phoneNumber);
 
       if (mounted) {
-        context.go('/otp-verify?phone=$phoneNumber&verificationId=$verificationId');
+        context.go(
+            '/otp-verify?phone=$phoneNumber&verificationId=$verificationId');
       }
     } catch (e) {
       if (mounted) {
@@ -178,4 +179,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

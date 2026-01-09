@@ -71,26 +71,41 @@ class AuthService {
       }
       
       // Create new user document
+      Map<String, dynamic> userData;
+      
       if (existingUser != null) {
         // User exists with this phone number but different auth UID
-        // Create new document with existing user's role and data
-        await _firestore.collection('users').doc(uid).set({
+        // Use existing user's role and data
+        userData = {
           'phone': phoneNumber,
           'globalRole': existingUser.globalRole.toString().split('.').last,
           'status': existingUser.status.toString().split('.').last,
           'createdAt': existingUser.createdAt ?? FieldValue.serverTimestamp(),
-        });
+        };
       } else {
         // Brand new user - default role is client
-        await _firestore.collection('users').doc(uid).set({
+        userData = {
           'phone': phoneNumber,
           'globalRole': GlobalRole.client.toString().split('.').last,
           'status': UserStatus.active.toString().split('.').last,
           'createdAt': FieldValue.serverTimestamp(),
-        });
+        };
       }
       
-      return await getUser(uid);
+      // Create the user document
+      await _firestore.collection('users').doc(uid).set(userData);
+      
+      // Wait a moment for Firestore to process
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Return user model directly instead of fetching again
+      return UserModel(
+        uid: uid,
+        phone: phoneNumber,
+        globalRole: existingUser?.globalRole ?? GlobalRole.client,
+        status: existingUser?.status ?? UserStatus.active,
+        createdAt: existingUser?.createdAt ?? DateTime.now(),
+      );
     } catch (e) {
       throw Exception('OTP verification failed: $e');
     }
