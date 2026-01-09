@@ -32,13 +32,6 @@ service cloud.firestore {
       return false;
     }
     
-    // Helper function to check if user is member via projectMembers collection
-    function isProjectMemberViaCollection(projectId, userId) {
-      // This is used for list queries where we can't easily check groups
-      // For now, we'll allow if user is admin or if they can read the project
-      return isAdmin(userId);
-    }
-    
     // Users collection
     match /users/{userId} {
       // Users can read their own data, admins can read all users
@@ -50,21 +43,16 @@ service cloud.firestore {
       allow list: if true; // Allow all queries for phone lookup
       
       // Allow users to create their own user document (for first-time registration)
-      // Also allow creation during login if phone number matches existing user
+      // Also allow creation during login if phone number is provided
       allow create: if request.auth != null && 
         (request.auth.uid == userId || 
-         // Allow if creating user with phone that exists (for linking during login)
+         // Allow if creating user with phone (for linking during login)
          (request.resource.data.phone != null && 
           request.resource.data.phone is string));
       
       // Allow users to update their own document (phone, etc.), admins can update any
-      // Also allow updating phone number during login linking
       allow update: if request.auth != null && 
-        (request.auth.uid == userId || 
-         isAdmin(request.auth.uid) ||
-         // Allow updating if phone matches (for login linking)
-         (request.resource.data.phone != null && 
-          resource.data.phone == request.resource.data.phone));
+        (request.auth.uid == userId || isAdmin(request.auth.uid));
       
       // Only admins can delete users
       allow delete: if request.auth != null && isAdmin(request.auth.uid);
@@ -96,11 +84,11 @@ service cloud.firestore {
          (isProjectMember(resource.data.projectId, request.auth.uid) || 
           isAdmin(request.auth.uid)));
       
-      // For list queries, allow if admin or if query filters by projectId where user is member
+      // For list queries, allow if admin or authenticated (app should filter by projectId)
       // Note: App should always filter by projectId in queries
       allow list: if request.auth != null && 
         (isAdmin(request.auth.uid) ||
-         // Allow if query has projectId filter (app should always include this)
+         // Allow authenticated users (app should filter by projectId)
          request.query.limit <= 100);
       
       // Admins and managers can add members
@@ -140,11 +128,11 @@ service cloud.firestore {
          (isProjectMember(resource.data.projectId, request.auth.uid) || 
           isAdmin(request.auth.uid)));
       
-      // For list queries, allow if admin or if query filters by projectId
+      // For list queries, allow if admin or authenticated (app should filter by projectId)
       // Note: App should always filter by projectId in queries
       allow list: if request.auth != null && 
         (isAdmin(request.auth.uid) ||
-         // Allow if query has projectId filter (app should always include this)
+         // Allow authenticated users (app should filter by projectId)
          request.query.limit <= 100);
       
       // Project members can create messages
