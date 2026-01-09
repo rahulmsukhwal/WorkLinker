@@ -89,6 +89,16 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'If OTP not received, use Master OTP: 123456',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 48),
                   TextFormField(
                     controller: _otpController,

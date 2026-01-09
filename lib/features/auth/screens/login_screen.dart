@@ -13,17 +13,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _isPhoneLogin = true;
-  bool _isRegistering = false;
 
   @override
   void dispose() {
     _phoneController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
@@ -107,44 +101,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _signInWithEmail() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final authService = context.read<AuthService>();
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
-      if (_isRegistering) {
-        await authService.registerWithEmail(email, password);
-      } else {
-        await authService.signInWithEmail(email, password);
-      }
-
-      if (mounted) {
-        context.go('/dashboard');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,135 +139,40 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
-                  
-                  // Toggle between Phone and Email login
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Phone'),
-                        selected: _isPhoneLogin,
-                        onSelected: (selected) {
-                          setState(() {
-                            _isPhoneLogin = selected;
-                            _isRegistering = false;
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 16),
-                      ChoiceChip(
-                        label: const Text('Email'),
-                        selected: !_isPhoneLogin,
-                        onSelected: (selected) {
-                          setState(() {
-                            _isPhoneLogin = !selected;
-                            _isRegistering = false;
-                          });
-                        },
-                      ),
-                    ],
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number',
+                      hintText: 'Enter 10 digit number (e.g., 8209556233)',
+                      prefixIcon: const Icon(Icons.phone),
+                      prefixText: '+91 ',
+                      border: const OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your phone number';
+                      }
+                      String digits = value.replaceAll(RegExp(r'[^\d]'), '');
+                      if (digits.length < 10) {
+                        return 'Please enter a valid 10 digit phone number';
+                      }
+                      if (digits.length > 12) {
+                        return 'Phone number is too long';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Phone Login Form
-                  if (_isPhoneLogin) ...[
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: 'Phone Number',
-                        hintText: 'Enter 10 digit number (e.g., 8209556233)',
-                        prefixIcon: const Icon(Icons.phone),
-                        prefixText: '+91 ',
-                        border: const OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your phone number';
-                        }
-                        String digits = value.replaceAll(RegExp(r'[^\d]'), '');
-                        if (digits.length < 10) {
-                          return 'Please enter a valid 10 digit phone number';
-                        }
-                        if (digits.length > 12) {
-                          return 'Phone number is too long';
-                        }
-                        return null;
-                      },
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _sendOTP,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _sendOTP,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator()
-                          : const Text('Send OTP'),
-                    ),
-                  ] else ...[
-                    // Email Login Form
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        hintText: 'Enter your email',
-                        prefixIcon: Icon(Icons.email),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your email';
-                        }
-                        if (!value.contains('@')) {
-                          return 'Please enter a valid email';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        hintText: 'Enter your password',
-                        prefixIcon: Icon(Icons.lock),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your password';
-                        }
-                        if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _signInWithEmail,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator()
-                          : Text(_isRegistering ? 'Register' : 'Sign In'),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _isRegistering = !_isRegistering;
-                        });
-                      },
-                      child: Text(_isRegistering
-                          ? 'Already have an account? Sign In'
-                          : 'Don\'t have an account? Register'),
-                    ),
-                  ],
+                    child: _isLoading
+                        ? const CircularProgressIndicator()
+                        : const Text('Send OTP'),
+                  ),
                 ],
               ),
             ),

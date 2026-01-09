@@ -57,7 +57,7 @@ class UserModel {
     if (email != null) map['email'] = email;
     return map;
   }
-  
+
   String get displayIdentifier => phone ?? email ?? 'Unknown';
 
   String getAlias() {
@@ -74,4 +74,3 @@ class UserModel {
     }
   }
 }
-
