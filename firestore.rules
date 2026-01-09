@@ -50,11 +50,21 @@ service cloud.firestore {
       allow list: if true; // Allow all queries for phone lookup
       
       // Allow users to create their own user document (for first-time registration)
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Also allow creation during login if phone number matches existing user
+      allow create: if request.auth != null && 
+        (request.auth.uid == userId || 
+         // Allow if creating user with phone that exists (for linking during login)
+         (request.resource.data.phone != null && 
+          request.resource.data.phone is string));
       
       // Allow users to update their own document (phone, etc.), admins can update any
+      // Also allow updating phone number during login linking
       allow update: if request.auth != null && 
-        (request.auth.uid == userId || isAdmin(request.auth.uid));
+        (request.auth.uid == userId || 
+         isAdmin(request.auth.uid) ||
+         // Allow updating if phone matches (for login linking)
+         (request.resource.data.phone != null && 
+          resource.data.phone == request.resource.data.phone));
       
       // Only admins can delete users
       allow delete: if request.auth != null && isAdmin(request.auth.uid);

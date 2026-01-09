@@ -21,6 +21,43 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  String _formatPhoneNumber(String phone) {
+    // Remove all non-digit characters
+    String digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    
+    // If starts with 91 and has 12 digits, it's already formatted
+    if (digits.startsWith('91') && digits.length == 12) {
+      return '+$digits';
+    }
+    
+    // If starts with 0, remove it
+    if (digits.startsWith('0')) {
+      digits = digits.substring(1);
+    }
+    
+    // If 10 digits, add +91 prefix
+    if (digits.length == 10) {
+      return '+91$digits';
+    }
+    
+    // If already has country code (12 digits starting with 91)
+    if (digits.length == 12 && digits.startsWith('91')) {
+      return '+$digits';
+    }
+    
+    // Return as is if already formatted with +
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    
+    // Default: assume 10 digit Indian number
+    if (digits.length == 10) {
+      return '+91$digits';
+    }
+    
+    return phone;
+  }
+
   Future<void> _sendOTP() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -30,7 +67,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final authService = context.read<AuthService>();
-      final phoneNumber = _phoneController.text.trim();
+      String phoneInput = _phoneController.text.trim();
+      
+      // Auto-format phone number with +91 prefix
+      final phoneNumber = _formatPhoneNumber(phoneInput);
+      
+      // Update the controller to show formatted number
+      if (phoneNumber != phoneInput) {
+        _phoneController.text = phoneNumber;
+      }
 
       final verificationId = await authService.sendOTP(phoneNumber);
 
@@ -92,18 +137,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextFormField(
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Phone Number',
-                      hintText: '+91xxxxxxxxxx',
-                      prefixIcon: Icon(Icons.phone),
-                      border: OutlineInputBorder(),
+                      hintText: 'Enter 10 digit number (e.g., 8209556233)',
+                      prefixIcon: const Icon(Icons.phone),
+                      prefixText: '+91 ',
+                      border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your phone number';
                       }
-                      if (value.length < 10) {
-                        return 'Please enter a valid phone number';
+                      // Remove non-digits for validation
+                      String digits = value.replaceAll(RegExp(r'[^\d]'), '');
+                      if (digits.length < 10) {
+                        return 'Please enter a valid 10 digit phone number';
+                      }
+                      if (digits.length > 12) {
+                        return 'Phone number is too long';
                       }
                       return null;
                     },

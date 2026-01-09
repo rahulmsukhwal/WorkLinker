@@ -30,65 +30,67 @@ class AuthService {
         throw Exception('Invalid OTP. Use 123456 for testing.');
       }
 
-      // Check if user with this phone number already exists
-      String? existingUserId;
-      if (phoneNumber != null && phoneNumber.isNotEmpty) {
-        final phoneQuery = await _firestore
-            .collection('users')
-            .where('phone', isEqualTo: phoneNumber)
-            .limit(1)
-            .get();
-        
-        if (phoneQuery.docs.isNotEmpty) {
-          existingUserId = phoneQuery.docs.first.id;
-        }
+      if (phoneNumber == null || phoneNumber.isEmpty) {
+        throw Exception('Phone number is required');
+      }
+
+      // Check if user with this phone number already exists in Firestore
+      UserModel? existingUser;
+      
+      final phoneQuery = await _firestore
+          .collection('users')
+          .where('phone', isEqualTo: phoneNumber)
+          .limit(1)
+          .get();
+      
+      if (phoneQuery.docs.isNotEmpty) {
+        existingUser = UserModel.fromFirestore(phoneQuery.docs.first);
       }
 
       // Sign in anonymously to get Firebase Auth user (bypassing phone auth)
       final anonymousCredential = await _auth.signInAnonymously();
       
-      if (anonymousCredential.user != null) {
-        final uid = anonymousCredential.user!.uid;
-        
-        // If user with this phone exists, use that user's data
-        if (existingUserId != null) {
-          // Update the existing user's document to link with this auth UID
-          // Or create a new document with the existing user's data
-          final existingUserDoc = await _firestore.collection('users').doc(existingUserId).get();
-          if (existingUserDoc.exists) {
-            // Copy existing user data to new auth UID
-            final existingData = existingUserDoc.data()!;
-            await _firestore.collection('users').doc(uid).set(existingData);
-            // Optionally delete old document or keep both
-            return await getUser(uid);
-          }
-        }
-        
-        // Check if user exists in Firestore
-        final userDoc = await _firestore.collection('users').doc(uid).get();
+      if (anonymousCredential.user == null) {
+        throw Exception('Failed to create authentication session');
+      }
+      
+      final uid = anonymousCredential.user!.uid;
+      
+      // Check if user document already exists for this auth UID
+      final userDoc = await _firestore.collection('users').doc(uid).get();
 
-        if (!userDoc.exists) {
-          // Create new user - default role is client
-          // Admin role must be set manually using make_admin.dart script
-          await _firestore.collection('users').doc(uid).set({
-            'phone': phoneNumber ?? 'unknown',
-            'globalRole': GlobalRole.client.toString().split('.').last,
-            'status': UserStatus.active.toString().split('.').last,
-            'createdAt': FieldValue.serverTimestamp(),
+      if (userDoc.exists) {
+        // User already exists, update phone if needed and return
+        final currentPhone = userDoc.data()?['phone'] as String?;
+        if (currentPhone != phoneNumber) {
+          await _firestore.collection('users').doc(uid).update({
+            'phone': phoneNumber,
           });
-        } else {
-          // Update phone number if provided
-          if (phoneNumber != null) {
-            await _firestore.collection('users').doc(uid).update({
-              'phone': phoneNumber,
-            });
-          }
         }
-        
         return await getUser(uid);
       }
       
-      return null;
+      // Create new user document
+      if (existingUser != null) {
+        // User exists with this phone number but different auth UID
+        // Create new document with existing user's role and data
+        await _firestore.collection('users').doc(uid).set({
+          'phone': phoneNumber,
+          'globalRole': existingUser.globalRole.toString().split('.').last,
+          'status': existingUser.status.toString().split('.').last,
+          'createdAt': existingUser.createdAt ?? FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Brand new user - default role is client
+        await _firestore.collection('users').doc(uid).set({
+          'phone': phoneNumber,
+          'globalRole': GlobalRole.client.toString().split('.').last,
+          'status': UserStatus.active.toString().split('.').last,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      return await getUser(uid);
     } catch (e) {
       throw Exception('OTP verification failed: $e');
     }
