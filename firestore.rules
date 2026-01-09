@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get user data
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin(userId) {
+      return getUserData(userId).globalRole == 'admin';
+    }
+    
+    // Helper function to check if user is project member
+    // Note: This is a simplified check. In production, you may need to query projectMembers collection
+    function isProjectMember(projectId, userId) {
+      // Check if user is in the group
+      let groupData = get(/databases/$(database)/documents/groups/$(projectId)).data;
+      return userId in groupData.memberIds;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own data
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Only admins can write to users (for role assignment)
+      allow write: if request.auth != null && isAdmin(request.auth.uid);
+      
+      // Allow creating new users during project creation
+      allow create: if request.auth != null;
+    }
+    
+    // Projects collection
+    match /projects/{projectId} {
+      // Users can read projects they are members of
+      allow read: if request.auth != null && 
+        (isProjectMember(projectId, request.auth.uid) || isAdmin(request.auth.uid));
+      
+      // Only admins and managers can create projects
+      allow create: if request.auth != null && 
+        (isAdmin(request.auth.uid) || getUserData(request.auth.uid).globalRole == 'manager');
+      
+      // Only admins can update/delete projects
+      allow update, delete: if request.auth != null && isAdmin(request.auth.uid);
+    }
+    
+    // Project members collection
+    match /projectMembers/{memberId} {
+      // Users can read members of projects they belong to
+      allow read: if request.auth != null && 
+        (isProjectMember(resource.data.projectId, request.auth.uid) || 
+         isAdmin(request.auth.uid));
+      
+      // Admins and managers can add members
+      allow create: if request.auth != null && 
+        (isAdmin(request.auth.uid) || 
+         (getUserData(request.auth.uid).globalRole == 'manager' && 
+          request.resource.data.projectRole == 'developer'));
+      
+      // Admins can remove any member, managers can remove developers
+      allow delete: if request.auth != null && 
+        (isAdmin(request.auth.uid) || 
+         (getUserData(request.auth.uid).globalRole == 'manager' && 
+          resource.data.projectRole == 'developer'));
+    }
+    
+    // Groups collection
+    match /groups/{projectId} {
+      // Project members can read group data
+      allow read: if request.auth != null && 
+        (isProjectMember(projectId, request.auth.uid) || isAdmin(request.auth.uid));
+      
+      // Only admins and managers can update groups
+      allow write: if request.auth != null && 
+        (isAdmin(request.auth.uid) || 
+         getUserData(request.auth.uid).globalRole == 'manager');
+    }
+    
+    // Messages collection
+    match /messages/{messageId} {
+      // Project members can read messages
+      allow read: if request.auth != null && 
+        (isProjectMember(resource.data.projectId, request.auth.uid) || 
+         isAdmin(request.auth.uid));
+      
+      // Project members can create messages
+      allow create: if request.auth != null && 
+        (isProjectMember(request.resource.data.projectId, request.auth.uid) || 
+         isAdmin(request.auth.uid));
+      
+      // Users can update their own messages (for read receipts)
+      allow update: if request.auth != null && 
+        (resource.data.senderId == request.auth.uid || 
+         isProjectMember(resource.data.projectId, request.auth.uid));
+    }
+  }
+}
+
