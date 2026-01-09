@@ -32,16 +32,16 @@ service cloud.firestore {
       allow read: if request.auth != null && 
         (request.auth.uid == userId || isAdmin(request.auth.uid));
       
-      // Allow authenticated users to query users collection (for phone lookup during login)
-      // Also allow unauthenticated queries for initial phone lookup
-      allow list: if true; // Allow all queries for phone lookup
+      // Allow authenticated users to query users collection (for phone/email lookup during login)
+      // Also allow unauthenticated queries for initial lookup
+      allow list: if true; // Allow all queries for phone/email lookup
       
       // Allow users to create their own user document (for first-time registration)
-      // Must match auth UID and include required fields
+      // Must match auth UID and include required fields (phone OR email)
       allow create: if request.auth != null && 
         request.auth.uid == userId &&
-        request.resource.data.phone != null &&
-        request.resource.data.phone is string &&
+        ((request.resource.data.phone != null && request.resource.data.phone is string) ||
+         (request.resource.data.email != null && request.resource.data.email is string)) &&
         request.resource.data.globalRole != null &&
         request.resource.data.status != null;
       
